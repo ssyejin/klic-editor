@@ -3,17 +3,28 @@ import { useRecoilState } from 'recoil'
 import { extractTextFromImage } from '../services/ocrApi'
 import { markupResultState } from '../store/atoms'
 
+function extractContentsRegion(rawHtml) {
+  // 첫 번째 <!-- contents --> 이후, 다음 <!--.*contents.*--> 사이 추출
+  const match = rawHtml.match(/<!--\s*contents\s*-->([\s\S]*?)<!--[^>]*contents[^>]*-->/i)
+  return match ? match[1].trim() : null
+}
+
 function extractMarkupAndImages(html, baseUrl) {
+  const contentsHtml = extractContentsRegion(html)
+
   const parser = new DOMParser()
-  const doc = parser.parseFromString(html, 'text/html')
+  const doc = parser.parseFromString(contentsHtml ?? html, 'text/html')
 
   doc.querySelectorAll('script, style, noscript, iframe, svg').forEach(el => el.remove())
 
-  const target = doc.querySelector('.greeting') || doc.getElementById('subContent') || doc.body
+  const target = contentsHtml
+    ? doc.body
+    : (doc.querySelector('.greeting') || doc.getElementById('subContent') || doc.body)
+
   target.querySelectorAll('*').forEach(el => {
     ['style', 'onclick', 'onload', 'onerror'].forEach(attr => el.removeAttribute(attr))
   })
-  const markup = (target === doc.body ? target.innerHTML : target.outerHTML).replace(/\s+/g, ' ').trim()
+  const markup = target.innerHTML.replace(/\s+/g, ' ').trim()
 
   const origin = new URL(baseUrl).origin
   const images = Array.from(doc.querySelectorAll('img'))
