@@ -1,7 +1,5 @@
-const SERVER_URL = 'http://localhost:3001'
-
 export async function extractTextFromImage(base64, contentType) {
-  const response = await fetch(`${SERVER_URL}/api/ocr`, {
+  const response = await fetch('/api/ocr', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ base64, contentType }),

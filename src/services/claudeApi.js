@@ -1,7 +1,5 @@
-const SERVER_URL = 'http://localhost:3001'
-
 export async function convertTablesToHtml(documentContent) {
-  const response = await fetch(`${SERVER_URL}/api/convert-table`, {
+  const response = await fetch('/api/convert-table', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: documentContent }),

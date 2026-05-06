@@ -3,8 +3,6 @@ import { useRecoilState } from 'recoil'
 import { extractTextFromImage } from '../services/ocrApi'
 import { markupResultState } from '../store/atoms'
 
-const SERVER_URL = 'http://localhost:3001'
-
 function extractMarkupAndImages(html, baseUrl) {
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, 'text/html')
@@ -52,7 +50,7 @@ export default function MarkupFetcher() {
     setErrorMsg('')
 
     try {
-      const res = await fetch(`${SERVER_URL}/api/fetch-markup`, {
+      const res = await fetch('/api/fetch-markup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url }),
@@ -76,7 +74,7 @@ export default function MarkupFetcher() {
     setOcrLoading(prev => ({ ...prev, [imgUrl]: true }))
 
     try {
-      const res = await fetch(`${SERVER_URL}/api/fetch-image`, {
+      const res = await fetch('/api/fetch-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: imgUrl }),
