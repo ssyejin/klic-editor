@@ -158,10 +158,17 @@ Rules:
 </tbody>
 </table></div>`
 
+function theadInstruction(theadRows) {
+  if (theadRows === 'auto') return 'Determine header rows automatically based on content structure.'
+  return `Put exactly ${theadRows} row(s) into <thead>. No more, no less.`
+}
+
 app.post('/api/convert-table', async (req, res) => {
-  const { content } = req.body
+  const { content, theadRows = 'auto' } = req.body
 
   if (!content) return res.status(400).json({ error: '내용이 필요합니다.' })
+
+  const prompt = TABLE_SYSTEM_PROMPT + `\n- thead rows: ${theadInstruction(theadRows)}`
 
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -173,8 +180,8 @@ app.post('/api/convert-table', async (req, res) => {
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: TABLE_SYSTEM_PROMPT },
-          { role: 'user', content: `다음 문서 내용에서 표를 HTML로 변환해주세요:\n\n${content}` },
+          { role: 'system', content: prompt },
+          { role: 'user', content: `Convert the tables in the following content to HTML. DO NOT translate any text — keep every word exactly as written in the original language.\n\n${content}` },
         ],
       }),
     })

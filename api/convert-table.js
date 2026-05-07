@@ -13,11 +13,18 @@ Rules:
 - Return HTML code only, no markdown code blocks
 - Return empty string if no tables found`
 
+function theadInstruction(theadRows) {
+  if (theadRows === 'auto') return 'Determine header rows automatically based on content structure.'
+  return `Put exactly ${theadRows} row(s) into <thead>. No more, no less.`
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { content } = req.body
+  const { content, theadRows = 'auto' } = req.body
   if (!content) return res.status(400).json({ error: '내용이 필요합니다.' })
+
+  const prompt = TABLE_SYSTEM_PROMPT + `\n- thead rows: ${theadInstruction(theadRows)}`
 
   try {
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
@@ -29,8 +36,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: 'llama-3.3-70b-versatile',
         messages: [
-          { role: 'system', content: TABLE_SYSTEM_PROMPT },
-          { role: 'user', content: `다음 문서 내용에서 표를 HTML로 변환해주세요:\n\n${content}` },
+          { role: 'system', content: prompt },
+          { role: 'user', content: `Convert the tables in the following content to HTML. DO NOT translate any text — keep every word exactly as written in the original language.\n\n${content}` },
         ],
       }),
     })

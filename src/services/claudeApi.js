@@ -1,8 +1,8 @@
-export async function convertTablesToHtml(documentContent) {
+export async function convertTablesToHtml(documentContent, theadRows = 'auto') {
   const response = await fetch('/api/convert-table', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: documentContent }),
+    body: JSON.stringify({ content: documentContent, theadRows }),
   })
 
   if (!response.ok) {
