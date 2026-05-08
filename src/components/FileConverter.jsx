@@ -1,26 +1,8 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useRecoilState } from 'recoil'
 import { convertTablesToHtml } from '../services/claudeApi'
 import { editorResultState } from '../store/atoms'
-
-const VOID_TAGS = /^<(area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)[\s>]/i
-
-function formatHtml(html) {
-  let indent = 0
-  return html
-    .replace(/>\s*</g, '>\n<')
-    .split('\n')
-    .map(line => {
-      line = line.trim()
-      if (!line) return ''
-      if (line.startsWith('</')) indent = Math.max(0, indent - 1)
-      const result = '  '.repeat(indent) + line
-      if (!line.startsWith('</') && !line.endsWith('/>') && !VOID_TAGS.test(line) && !line.includes('</')) indent++
-      return result
-    })
-    .filter(Boolean)
-    .join('\n')
-}
+import { formatHtml } from '../utils/formatHtml'
 
 function cleanHtml(html) {
   const parser = new DOMParser()
@@ -56,6 +38,29 @@ function restoreCellText(html, map) {
   return Object.entries(map).reduce((acc, [key, val]) => acc.replaceAll(key, val), html)
 }
 
+function applyScrollGr(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  doc.querySelectorAll('table').forEach(table => {
+    let maxCols = 0
+    let maxRowText = 0
+    table.querySelectorAll('tr').forEach(row => {
+      let cols = 0
+      let textLen = 0
+      row.querySelectorAll('td, th').forEach(cell => {
+        cols += parseInt(cell.getAttribute('colspan') || 1)
+        textLen += cell.textContent.trim().length
+      })
+      maxCols = Math.max(maxCols, cols)
+      maxRowText = Math.max(maxRowText, textLen)
+    })
+    const needs = maxCols >= 5 || (maxCols >= 3 && maxRowText > 100)
+    if (!needs) return
+    const wrapper = table.closest('.tbl_st') || table.parentElement
+    if (wrapper) wrapper.classList.add('scroll_gr')
+  })
+  return doc.body.innerHTML
+}
+
 function buildCaption(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
   doc.querySelectorAll('table').forEach(table => {
@@ -64,7 +69,7 @@ function buildCaption(html) {
       .filter(Boolean)
     if (headers.length === 0) return
     const caption = table.querySelector('caption') || doc.createElement('caption')
-    caption.textContent = `${headers.join(', ')} 에 관한 정보 제공`
+    caption.textContent = `${headers.join(', ')}에 관한 정보 제공`
     if (!table.querySelector('caption')) table.prepend(caption)
   })
   return doc.body.innerHTML
@@ -129,6 +134,44 @@ export default function FileConverter() {
   const [errorMsg, setErrorMsg] = useState('')
   const [theadCount, setTheadCount] = useState(1)
   const editorRef = useRef(null)
+  const previewRef = useRef(null)
+  const measuredResult = useRef(null)
+
+  useEffect(() => {
+    if (!result || result === measuredResult.current) return
+    if (!previewRef.current) return
+
+    const frame = requestAnimationFrame(() => {
+      const preview = previewRef.current
+      if (!preview) return
+
+      let changed = false
+      preview.querySelectorAll('.tbl_st').forEach(wrapper => {
+        const table = wrapper.querySelector('table')
+        if (!table) return
+        if (table.scrollWidth > wrapper.clientWidth + 1) {
+          if (wrapper.classList.contains('scroll_gr')) {
+            wrapper.classList.remove('scroll_gr')
+            changed = true
+          }
+          if (!wrapper.classList.contains('scroll_wide')) {
+            wrapper.classList.add('scroll_wide')
+            changed = true
+          }
+        }
+      })
+
+      if (changed) {
+        const newResult = formatHtml(preview.innerHTML)
+        measuredResult.current = newResult
+        setResult(newResult)
+      } else {
+        measuredResult.current = result
+      }
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [result])
 
   function handlePaste(e) {
     e.preventDefault()
@@ -153,7 +196,8 @@ export default function FileConverter() {
       const normalized = restored ? restored.replace(/<colgroup>[\s\S]*?<\/colgroup>/gi, '<colgroup>\n<col style="width:auto;">\n</colgroup>') : ''
       const adjusted = normalized ? applyTheadCount(normalized, 1) : ''
       const captioned = adjusted ? buildCaption(adjusted) : ''
-      const formatted = captioned ? formatHtml(captioned) : '표를 찾을 수 없습니다.'
+      const scrolled = captioned ? applyScrollGr(captioned) : ''
+      const formatted = scrolled ? formatHtml(scrolled) : '표를 찾을 수 없습니다.'
       setResult(formatted)
       setTheadCount(1)
       setStatus('done')
@@ -167,7 +211,7 @@ export default function FileConverter() {
     const total = countTotalRows(result)
     const next = Math.min(Math.max(1, theadCount + delta), total - 1)
     if (next === theadCount) return
-    const updated = formatHtml(buildCaption(applyTheadCount(result, next)))
+    const updated = formatHtml(applyScrollGr(buildCaption(applyTheadCount(result, next))))
     setTheadCount(next)
     setResult(updated)
   }
@@ -210,10 +254,15 @@ export default function FileConverter() {
             </div>
             <button onClick={copyToClipboard}>복사</button>
           </div>
-          <pre className="result-code">{result}</pre>
+          <textarea
+            className="result-code"
+            value={result}
+            onChange={e => setResult(e.target.value)}
+            spellCheck={false}
+          />
           <div className="result-preview">
             <p className="preview-label">미리보기</p>
-            <div dangerouslySetInnerHTML={{ __html: result }} />
+            <div ref={previewRef} dangerouslySetInnerHTML={{ __html: result }} />
           </div>
         </div>
       )}

@@ -1,19 +1,26 @@
 const API_KEY = import.meta.env.VITE_GROQ_API_KEY
 const API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
-const SYSTEM_PROMPT = `당신은 문서 마크업 변환 전문가입니다. PDF 페이지 이미지를 보고 내용을 다음 규칙에 따라 HTML로 변환하세요.
+const SYSTEM_PROMPT = `You are an expert document markup converter. Convert a PDF page image to HTML following these rules exactly.
 
-변환 규칙:
-- 큰 제목 → <h2>
-- 소제목 → <h3>
-- 본문 단락 → <p>
-- 순서 없는 목록 → <ul><li>...</li></ul>
-- 순서 있는 목록 → <ol><li>...</li></ol>
-- 표의 첫 번째 행은 <thead><tr>...</tr></thead>, 나머지는 <tbody>
-- 표는 반드시 <div class="tbl_st"><table><caption>표 내용 요약</caption>...</table></div> 구조로 감싸기
-- thead 셀은 <th>, tbody 셀은 <td>
-- HTML 코드만 반환하고 설명이나 마크다운 코드블록은 제외하세요
-- 이미지, 장식 요소는 무시하세요`
+Rules:
+- Big title → <h2>
+- Subtitle → <h3>
+- Body paragraph → <p>
+- Unordered list → <ul><li>...</li></ul>
+- Ordered list → <ol><li>...</li></ol>
+- Wrap every table: <div class="tbl_st"><table><caption>brief summary</caption>...</table></div>
+- First row(s) → <thead><tr>...</tr></thead>, remaining rows → <tbody>
+- thead cells → <th>, tbody cells → <td>
+- Preserve colspan and rowspan attributes exactly as shown in the image
+- Line breaks inside cells → use <br>
+- Return only the HTML code. No explanations, no markdown code fences.
+- Ignore decorative images.
+
+CRITICAL for tables:
+- Output EVERY row. Never truncate or summarize rows.
+- Count all rows in the image before you start writing. Include every single row in the output.
+- Do not skip rows even if they look repetitive or similar.`
 
 export async function convertPageToMarkup(base64) {
   const response = await fetch(API_URL, {
@@ -24,6 +31,7 @@ export async function convertPageToMarkup(base64) {
     },
     body: JSON.stringify({
       model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      max_tokens: 8192,
       messages: [
         {
           role: 'system',
@@ -38,7 +46,7 @@ export async function convertPageToMarkup(base64) {
             },
             {
               type: 'text',
-              text: '이 PDF 페이지를 HTML 마크업으로 변환해주세요.',
+              text: 'Convert this PDF page to HTML markup. Include ALL rows of every table without exception.',
             },
           ],
         },

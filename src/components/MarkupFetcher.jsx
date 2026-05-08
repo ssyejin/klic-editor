@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useRecoilState } from 'recoil'
 import { extractTextFromImage } from '../services/ocrApi'
 import { markupResultState } from '../store/atoms'
+import { formatHtml } from '../utils/formatHtml'
 
 function extractContentsRegion(rawHtml) {
   // 첫 번째 <!-- contents --> 이후, 다음 <!--.*contents.*--> 사이 추출
@@ -9,25 +10,42 @@ function extractContentsRegion(rawHtml) {
   return match ? match[1].trim() : null
 }
 
-function extractMarkupAndImages(html, baseUrl) {
+function extractMarkupAndImages(html, baseUrl, selector = '') {
   const contentsHtml = extractContentsRegion(html)
 
   const parser = new DOMParser()
-  const doc = parser.parseFromString(contentsHtml ?? html, 'text/html')
+  const doc = parser.parseFromString(selector.trim() ? html : (contentsHtml ?? html), 'text/html')
 
   doc.querySelectorAll('script, style, noscript, iframe, svg').forEach(el => el.remove())
 
-  const target = contentsHtml
-    ? doc.body
-    : (doc.querySelector('.greeting') || doc.getElementById('subContent') || doc.body)
+  let markupHtml
+  if (selector.trim()) {
+    const matched = Array.from(doc.querySelectorAll(selector.trim()))
+    if (matched.length > 0) {
+      matched.forEach(el => {
+        el.querySelectorAll('*').forEach(child => {
+          ['style', 'onclick', 'onload', 'onerror'].forEach(attr => child.removeAttribute(attr))
+        })
+      })
+      markupHtml = matched.map(el => el.outerHTML).join('\n')
+    }
+  }
 
-  target.querySelectorAll('*').forEach(el => {
-    ['style', 'onclick', 'onload', 'onerror'].forEach(attr => el.removeAttribute(attr))
-  })
-  const markup = target.innerHTML.replace(/\s+/g, ' ').trim()
+  if (!markupHtml) {
+    const target = contentsHtml
+      ? doc.body
+      : (doc.querySelector('.greeting') || doc.getElementById('subContent') || doc.body)
+    target.querySelectorAll('*').forEach(el => {
+      ['style', 'onclick', 'onload', 'onerror'].forEach(attr => el.removeAttribute(attr))
+    })
+    markupHtml = target.innerHTML
+  }
+
+  const markup = formatHtml(markupHtml)
 
   const origin = new URL(baseUrl).origin
-  const images = Array.from(doc.querySelectorAll('img'))
+  const markupDoc = parser.parseFromString(markupHtml, 'text/html')
+  const images = Array.from(markupDoc.querySelectorAll('img'))
     .map(img => {
       const src = img.getAttribute('src')
       if (!src) return null
@@ -44,6 +62,7 @@ function extractMarkupAndImages(html, baseUrl) {
 
 export default function MarkupFetcher() {
   const [url, setUrl] = useState('')
+  const [selector, setSelector] = useState('')
   const [status, setStatus] = useState('idle')
   const [markup, setMarkup] = useRecoilState(markupResultState)
   const [images, setImages] = useState([])
@@ -70,7 +89,7 @@ export default function MarkupFetcher() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
 
-      const { markup, images } = extractMarkupAndImages(data.html, url)
+      const { markup, images } = extractMarkupAndImages(data.html, url, selector)
       setMarkup(markup)
       setImages(images)
       setShowImages(false)
@@ -126,6 +145,13 @@ export default function MarkupFetcher() {
           {status === 'loading' ? '가져오는 중...' : '마크업 가져오기'}
         </button>
       </div>
+      <input
+        className="url-input selector-input"
+        type="text"
+        placeholder="추출할 영역 선택자 (선택) — 예: #subContent  /  클래스 여러 개: .box_st2.ac (공백 없이)"
+        value={selector}
+        onChange={(e) => setSelector(e.target.value)}
+      />
 
       {status === 'error' && (
         <div className="error-box">{errorMsg}</div>

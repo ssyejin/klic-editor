@@ -24,7 +24,23 @@ export default async function handler(req, res) {
 
     if (!response.ok) return res.status(response.status).json({ error: `페이지를 가져올 수 없습니다. (${response.status})` })
 
-    const html = await response.text()
+    const buffer = await response.arrayBuffer()
+
+    // Content-Type 헤더에서 charset 확인
+    const contentType = response.headers.get('content-type') || ''
+    let charset = 'utf-8'
+    const ctMatch = contentType.match(/charset=([^\s;]+)/i)
+    if (ctMatch) charset = ctMatch[1].toLowerCase()
+
+    // meta 태그에서 charset 확인 (헤더보다 우선)
+    const preview = new TextDecoder('utf-8', { fatal: false }).decode(buffer.slice(0, 4096))
+    const metaMatch = preview.match(/<meta[^>]+charset=["']?\s*([^"'\s;>]+)/i)
+    if (metaMatch) charset = metaMatch[1].toLowerCase()
+
+    // EUC-KR 계열 정규화
+    if (['euc-kr', 'ks_c_5601-1987', 'x-windows-949', 'cp949'].includes(charset)) charset = 'euc-kr'
+
+    const html = new TextDecoder(charset, { fatal: false }).decode(buffer)
     res.json({ html })
   } catch (err) {
     res.status(500).json({ error: `요청 실패: ${err.message}` })

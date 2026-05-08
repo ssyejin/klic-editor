@@ -390,6 +390,8 @@ div[class*='tbl-st'] > table thead th {background: var(--color-tertiary); border
 div[class*='tbl-st'] > table tbody th {color: #222; background: var(--color-gray-bg);}
 div[class*='tbl-st'] > table tfoot th {color: #222; background: var(--color-tertiary);}
 
+div[class*='tbl_st'].scroll_wide { overflow: auto;}
+
 /* Table : 스크롤 */
 .scroll-wrap{ position:relative;}
 div[class*='tbl-st scroll-']{ position:static; overflow-x: auto;}
@@ -399,6 +401,17 @@ div[class*='tbl-st'].scroll-w > table{ min-width: 1200px;}
 /* Table : 스크롤 */
 /* Table : Mobile 스크롤 */
 div[class*='tbl-st'].scroll-m:before{ display: none;}
+
+@media screen and (max-width:1024px){
+	/* 테이블 스크롤 */
+	div[class*='tbl_st'].scroll_gr,
+	div[class*='tbl_st'].scroll_wide { width:100%; overflow-x:auto; background-repeat:no-repeat;  background-position:right 5px; background-size:30px 100%; z-index:1;
+	background-image:-webkit-gradient(linear, right top, left top, from(rgba(0, 0, 0, 0.1)), to(rgba(0, 0, 0, 0)));
+	background-image:linear-gradient(to left,rgba(0, 0, 0, 0.1) 0%, rgba(0, 0, 0, 0) 100%); }
+	div[class*='tbl_st'].scroll_gr table,
+	div[class*='tbl_st'].scroll_wide table{ width:1024px; }
+}
+
 @media screen and (max-width: 768px){
 
 	div[class*='tbl-st'].scroll-m:before{ display: block;}
